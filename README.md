@@ -1,61 +1,61 @@
 # herdr-execution
 
-Skill de Claude Code para paralelizar trabajo: a partir de un prompt, el orquestador arma una tabla corta de tareas y lanza workers de Claude Code en paralelo, cada uno en su propio pane de [Herdr](https://herdr.dev). No hay plan escrito, ni ola de research por defecto, ni parada de aprobación: arranca después de un único bloque de supuestos.
+Claude Code skill for parallelizing work: from a prompt, the orchestrator builds a short task table and launches Claude Code workers in parallel, each in its own [Herdr](https://herdr.dev) pane. There is no written plan, no research wave by default and no approval stop: it starts after a single assumptions block.
 
-## Es autocontenido
+## Self-contained
 
-No depende de ningún otro skill. Se puede instalar solo este. Todo lo necesario (comandos de Herdr, estados de los workers, manejo de fallas, reglas de evidencia) está dentro de `SKILL.md`.
+It does not depend on any other skill. You can install just this one. Everything it needs (Herdr commands, worker states, failure handling, evidence rules) is inside `SKILL.md`.
 
-## Requisitos
+## Requirements
 
-- Claude Code corriendo dentro de un pane de Herdr (`HERDR_ENV=1`).
-- El binario `herdr` en el `PATH`.
-- Un repo git (el modo build usa `git worktree`).
-- `pnpm` para los gates por defecto (`lint`, `test`, `build`); si el proyecto usa otros comandos, se usan los del proyecto.
+- Claude Code running inside a Herdr pane (`HERDR_ENV=1`).
+- The `herdr` binary on the `PATH`.
+- A git repo (build mode uses `git worktree`).
+- `pnpm` for the default gates (`lint`, `test`, `build`); if the project uses other commands, the project's own are used.
 
-Opcional: el MCP de Obsidian, solo si la tarea depende de conocimiento del proyecto. Si no está conectado, se ignora sin avisar.
+Optional: the Obsidian MCP, only if the task depends on project knowledge. If it is not connected, it is silently skipped.
 
-## Instalación
+## Installation
 
-Copiar esta carpeta al directorio de skills:
+Copy this folder into the skills directory:
 
 ```bash
 cp -r herdr-execution ~/.claude/skills/
 ```
 
-## Uso
+## Usage
 
-El skill tiene `disable-model-invocation: true`: Claude no lo carga solo, hay que invocarlo explícitamente.
+The skill sets `disable-model-invocation: true`: Claude does not load it on its own, it must be invoked explicitly.
 
 ```
-/herdr-execution <qué hay que construir o investigar>
+/herdr-execution <what to build or research>
 ```
 
-## Cómo funciona
+## How it works
 
-1. **Setup:** carpeta de reportes en `~/.cache/herdr-reports/<slug>-<fecha>`.
-2. **Lectura previa:** el orquestador lee `CLAUDE.md`, dependencias y los archivos que toca la tarea.
-3. **Bloque de supuestos:** tabla `ID · objetivo · modo · modelo · archivos` y arranca. Solo pregunta por decisiones de producto, acciones destructivas o sensibles, y push/PR/`main`.
-4. **Contrato primero:** si hay build en paralelo, el orquestador escribe las interfaces compartidas antes de despachar.
-5. **Workers:** máximo 4 panes vivos, cada uno con un brief (`brief-template.md`) y un reporte propio.
-6. **Aceptación:** reporte `PASS` en archivo, diff dentro del scope, verificación re-ejecutada por el orquestador, review independiente si toca pagos/auth/seguridad/migraciones, y gate completo tras el merge.
+1. **Setup:** report folder at `~/.cache/herdr-reports/<slug>-<date>`.
+2. **Read first:** the orchestrator reads `CLAUDE.md`, dependencies and the files the task touches.
+3. **Assumptions block:** an `ID · goal · mode · model · files` table, then it starts. It only asks about product decisions, destructive or sensitive actions, and push/PR/`main`.
+4. **Contract first:** for parallel builds, the orchestrator writes the shared interfaces before dispatching.
+5. **Workers:** at most 4 live panes, each with its own brief (`brief-template.md`) and its own report.
+6. **Acceptance:** a `PASS` report file, a diff within scope, verification re-run by the orchestrator, an independent review if the work touches payments/auth/security/migrations, and the full gate after the merge.
 
-## Modos
+## Modes
 
-| Modo | Cuándo | Workers |
+| Mode | When | Workers |
 |---|---|---|
-| Build (por defecto) | La tarea se divide en 2+ piezas con archivos disjuntos | Un worktree y una rama por worker |
-| Research | El usuario pide investigación o hay una pregunta que no se responde leyendo el repo | Solo lectura, con allowlist de herramientas |
+| Build (default) | The task splits into 2+ pieces with disjoint files | One worktree and one branch per worker |
+| Research | The user asks for research, or there is a question the repo cannot answer | Read-only, with a tool allowlist |
 
-Cuándo **no** usarlo: una pregunta o un cambio chico (hazlo directo), o piezas que tocan los mismos archivos (un solo worker).
+When **not** to use it: a single question or a small change (do it directly), or pieces that touch the same files (use one worker).
 
-## Qué no hace
+## What it does not do
 
-Ejecutar el skill autoriza commits y merges locales sobre `feature/<slug>`. No autoriza push, PR, merge a `main`, borrar worktrees o ramas, ni deploys: cada uno necesita un sí explícito.
+Running the skill authorizes local commits and merges on `feature/<slug>`. It does not authorize push, PR, a merge into `main`, deleting worktrees or branches, or deploys: each needs its own explicit yes.
 
-## Archivos
+## Files
 
-| Archivo | Contenido |
+| File | Contents |
 |---|---|
-| `SKILL.md` | Instrucciones del skill |
-| `brief-template.md` | Plantillas de brief para research, build y review |
+| `SKILL.md` | Skill instructions |
+| `brief-template.md` | Brief templates for research, build and review |
