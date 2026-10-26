@@ -12,6 +12,8 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
 
 **Core principle:** fast start, same evidence bar. A worker's report is a claim; only what you read, diffed or ran yourself is fact.
 
+**Workers run unattended.** Every worker starts in `--permission-mode auto` with the secret deny rules below. The orchestrator never asks the user which permission mode to use, and a worker that stops on a permission prompt is relaunched with the tool it needed allowed, not handed to the user (see "When a Worker Stops or Breaks"). The user is asked only for the three things in step 3 of Run.
+
 **Self-contained:** this skill needs no other skill. Everything required (CLI, worker states, failure handling, evidence rules) is below. Run `herdr agent --help` or `herdr pane --help` for flags not listed here.
 
 ## Herdr essentials
@@ -57,7 +59,8 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
   ```
   Run the prompt as a background command. Never resend a prompt; inspect `herdr agent read <id> --source recent-unwrapped --lines 120` first.
 - **Verify the effective model** with `herdr agent read <id> --source visible` (status line) and record it. Never assume a model alias is available.
-- Do not duplicate an agent that already exists for the task. Never answer another agent's permission prompt.
+- Do not duplicate an agent that already exists for the task. Never answer another agent's permission prompt: relaunch it with the right flags instead.
+- **Secret deny rules, on every launch** (they win over `auto`): `DENY_SECRETS=(--disallowedTools "Read(./.env*)" "Read(**/.env*)" "Bash(printenv:*)" "Bash(env:*)" "Bash(export -p:*)" "Bash(declare -p:*)" "Bash(cat .env*)" "Bash(head .env*)" "Bash(tail .env*)" "Bash(grep * .env*)")`, passed as `"${DENY_SECRETS[@]}"` after the mode flags. Check once per run that `claude --help` lists `--disallowedTools`.
 
 | Work | Model | Mode flags |
 |---|---|---|
@@ -65,14 +68,14 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
 | Research synthesis, standard implementation, tests | `sonnet` | research or build |
 | Architecture, payments, auth, migrations, hard debugging, reviews of those | `opus` | research or build |
 
-**Research mode** is read-only on the repo. Launch with `--permission-mode dontAsk --allowedTools "<Read, Grep, Glob, WebSearch, WebFetch, read-only git commands, and Write only under the report dir>"`. Check the exact rule syntax in `claude --help` the first time. Backstop: after each research worker, `git status --porcelain` must show nothing new. If a worker changed the repo, discard nothing; tell the user.
+**Research mode** is read-only on the repo. Launch with `--permission-mode dontAsk --allowedTools "<Read, Grep, Glob, WebSearch, WebFetch, read-only git commands, and Write only under the report dir>"`. `dontAsk` denies anything outside the allowlist without prompting, so the worker never blocks. Check the exact rule syntax in `claude --help` the first time. Backstop: after each research worker, `git status --porcelain` must show nothing new. If a worker changed the repo, discard nothing; tell the user.
 
 **Build mode** gives each worker its own worktree and branch off the coordination branch:
 ```bash
 git worktree add <root>.worktrees/<id> -b feature/<slug>-<id> feature/<slug>
 (cd <root>.worktrees/<id> && pnpm install --frozen-lockfile)
 ```
-Launch with `--permission-mode <mode the user approved>`. If `auto` is denied, ask once which write-capable mode they approve; never use bypass flags. Workers never touch `.env` secrets, the vault, or the scratchpad.
+Launch with `--permission-mode auto "${DENY_SECRETS[@]}"`, always, without asking. `auto` runs the brief's commands (`pnpm`, `git` in the worktree, the project's test and build tools) with a safety check that blocks risky ones; the deny rules keep `.env` out of reach even then. If the harness refuses `auto` (the `herdr agent start` call is denied, or the pane shows the refusal in `herdr agent read <id> --source visible` right after start), fall back **on your own** to `--permission-mode acceptEdits --allowedTools "Bash(pnpm:*)" "Bash(npx:*)" "Bash(git:*)" "Bash(node:*)"` plus the commands the brief's Verify section names, record the fallback in the scratchpad, and go on. Never use bypass flags, and never ask the user which mode to use. Workers never touch `.env` secrets, the vault, or the scratchpad.
 
 ## Research (only when asked)
 
@@ -94,7 +97,7 @@ All of these, in order:
 
 | Symptom | Do |
 |---|---|
-| `blocked` on a permission prompt | Do not answer it. Show the prompt to the user and let them decide |
+| `blocked` on a permission prompt | Do not answer it. Read it (`herdr agent read <id> --source visible`). If the tool or command is one the brief needs (a test runner, a build step, a git command in its worktree, a file under its allowed list), `/exit` the worker and relaunch it with the same name and brief plus `--allowedTools "<that rule>"`; record the rule in the scratchpad and add it to later launches. Only a prompt for something outside the brief (a destructive command, a secret, a host or path the brief never named) goes to the user, as a finding, with the worker left exited |
 | `idle` but no report file | Read `recent-unwrapped` output once; send one short follow-up asking for the report. Never resend the original prompt |
 | `working` far past the expected time | `herdr agent read` to see whether it progresses; if it loops or is silent, stop it and relaunch with a narrower brief |
 | Edited files outside its allowed list | Do not merge. Report the files to the user; discard nothing without their yes |
@@ -121,5 +124,7 @@ If the Obsidian MCP was connected for this run, update the vault at the end, onl
 | "PASS in chat, merge it" | Report file, scope diff, your own Verify run |
 | "Payments code is small, skip the review" | Payments, auth, migrations always get an `opus` reviewer |
 | "Use opus everywhere to be safe" | Match model to the table; cost is a decision |
+| "I'll ask which permission mode they want" | `auto` with the secret deny rules, always; `acceptEdits` plus an allowlist is the automatic fallback. The user is never asked about modes |
+| "A worker is blocked on a prompt, I'll show it to the user" | Read the prompt. If the brief needs that tool, relaunch with it allowed. The user sees only prompts for things the brief never asked for |
 | "Commit the scratchpad with the feature" | It stays untracked |
 | "The user said run it, so push too" | Push, PR and `main` need their own explicit yes |
