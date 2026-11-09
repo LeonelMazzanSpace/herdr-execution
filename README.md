@@ -37,9 +37,10 @@ The skill sets `disable-model-invocation: true`: Claude does not load it on its 
 2. **Read first:** the orchestrator reads `CLAUDE.md`, dependencies and the files the task touches.
 3. **Assumptions block:** an `ID · goal · mode · model · files` table, then it starts. It only asks about product decisions, destructive or sensitive actions, and push/PR/`main`.
 4. **Unattended workers:** every worker runs in `--permission-mode auto` with deny rules for `.env` and environment dumps. The orchestrator never asks which permission mode to use, and a worker stuck on a permission prompt is relaunched with that tool allowed instead of being handed to the user; only prompts for things outside its brief reach you.
+4. **Opus only for the orchestrator:** the orchestrator runs on `opus` and checks that at startup; every worker and reviewer runs on `sonnet` or `haiku`. Hard tasks (architecture, payments, auth, migrations) get the design decided in their brief and an orchestrator check on acceptance, instead of an Opus worker. The one exception: a task you name for Opus yourself, after the orchestrator states the cost and you confirm; it is recorded and applies to that task only.
 4. **Contract first:** for parallel builds, the orchestrator writes the shared interfaces before dispatching.
 5. **Workers:** at most 4 live panes, each with its own brief (`brief-template.md`) and its own report.
-6. **Acceptance:** a `PASS` report file, a diff within scope, verification re-run by the orchestrator, an independent review if the work touches payments/auth/security/migrations, and the full gate after the merge.
+6. **Acceptance:** a `PASS` report file, a diff within scope, verification re-run by the orchestrator, an independent Sonnet review plus the orchestrator's own check if the work touches payments/auth/security/migrations, and the full gate after the merge.
 
 ## Modes
 

@@ -34,6 +34,7 @@ End the report with `STATUS: DONE | BLOCKED (<reason>)` and `REPORT: <path>`.
 **Contract (fixed, do not change):** <interfaces, DTOs, tokens, endpoints, quoted verbatim from the coordination branch>
 **Files you own:** <list or globs. Anything else is out of scope; if you need it, stop with BLOCKED>
 **Do not touch:** <shared registration files owned by the orchestrator, `.env`, lockfile, other tasks' files>
+**Design decided (required for architecture, payments, auth, migrations, hard debugging; otherwise `none`):** <the approach you chose, the invariants that must hold, and the edge and abuse cases that each need a test. Do not redesign it; if it cannot work, stop with BLOCKED>
 **Libraries:** <only these; a new dependency means BLOCKED>
 **Environment:** <test DB variable, port, shared services>
 
@@ -56,7 +57,7 @@ Commit on your branch with conventional messages. End with `STATUS: PASS | FAIL 
 **Mode:** review, read-only. Do not edit the worktree.
 **Diff:** `git -C <wt> diff $(git -C <wt> merge-base feature/<slug> HEAD)...HEAD`
 **Brief and report under review:** `<report-dir>/<ID>.brief.md`, `<report-dir>/<ID>.md`
-**Review focus:** <correctness against the contract, input validation, error leakage, idempotency, secrets, transactions, migrations; pick what applies>
+**Review focus:** <correctness against the contract, input validation, error leakage, idempotency, secrets, transactions, migrations; pick what applies. Also the invariants and cases from the build brief's Design decided>
 
 Write `<report-dir>/<ID>.review.md`: findings graded Critical, Important, Minor, each with `file:line` and a failing scenario; then `VERDICT: APPROVED | CHANGES_REQUIRED`. End with `STATUS` and `REPORT` lines.
 ````
