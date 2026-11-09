@@ -80,7 +80,7 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
 
 Workers are `haiku` or `sonnet`; `opus` is only yours, apart from the user's named exception. For the hard row, the brief's **Design decided** field is mandatory: you choose the approach, the invariants and the edge and abuse cases that need a test, so the worker implements instead of designing.
 
-**Research mode** is read-only on the repo. Launch with `--permission-mode dontAsk --allowedTools "<Read, Grep, Glob, WebSearch, WebFetch, read-only git commands, and Write only under the report dir>"`. `dontAsk` denies anything outside the allowlist without prompting, so the worker never blocks. Check the exact rule syntax in `claude --help` the first time. Backstop: after each research worker, `git status --porcelain` must show nothing new. If a worker changed the repo, discard nothing; tell the user.
+**Research mode** is read-only on the repo, and is enforced by the brief plus a backstop, not by `dontAsk` (never use `dontAsk`: it silently denies what the worker needs and leaves you no say). Launch with `--permission-mode auto "${DENY_SECRETS[@]}"`, like build mode, without asking. The brief states that the worker only reads, and writes only its report under the report dir. You decide what happens when a worker stops or asks for something unexpected (see "When a Worker Stops or Breaks"). Backstop: after each research worker, `git status --porcelain` must show nothing new. If a worker changed the repo, discard nothing; tell the user.
 
 **Build mode** gives each worker its own worktree and branch off the coordination branch:
 ```bash
