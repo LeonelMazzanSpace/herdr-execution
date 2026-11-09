@@ -24,7 +24,7 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
 
 - **Agent states** (`herdr agent get <id>`, `herdr agent wait <id> --until <state> --timeout <ms>`): `working`, `idle`, `done`, `blocked` (waiting on a permission prompt or input), `unknown`. A prompt sent to a `blocked` agent is rejected with `agent_blocked`.
 - **Read output:** `herdr agent read <id> --source recent-unwrapped --lines 120` (or `--source visible` for the screen). `herdr agent explain <id>` says why a state was detected.
-- **Panes:** `herdr pane layout`, `herdr pane split`, `herdr pane close`, `herdr pane list`.
+- **Panes:** `herdr pane layout`, `herdr pane split`, `herdr pane close`, `herdr pane list`, `herdr pane send-keys <pane> <key>...` (`down`, `enter`, `esc`).
 - **Pane ids** come from JSON output (`.result.pane.pane_id`); use `jq`.
 
 ## When to use
@@ -62,8 +62,14 @@ The orchestrator turns a prompt into a short task table and runs independent Cla
   herdr agent prompt <id> "Read <report-dir>/<id>.brief.md and execute it exactly. Write your report to <report-dir>/<id>.md and end with STATUS and REPORT lines." --wait --timeout 3600000
   ```
   Run the prompt as a background command. Never resend a prompt; inspect `herdr agent read <id> --source recent-unwrapped --lines 120` first.
+- **Folder trust dialog: you accept it yourself, with judgment.** A worker launched in a folder Claude Code has not seen before (every new worktree) stops before its first prompt on "Is this a project you created or one you trust?"; `herdr agent start` then fails with `agent_not_ready … blocked during startup`. This is not a tool permission prompt, and the user is not asked. Accept it only when **all** of these hold:
+  1. `herdr agent read <id> --source visible` shows exactly that trust dialog ("Accessing workspace", "Yes, I trust this folder"), not a tool permission, a login, or anything else;
+  2. the path in the dialog equals the pane's `cwd` (`herdr agent get <id>` → `.result.agent.cwd`) and is a folder this run legitimately works in: a worktree you created under `<root>.worktrees/<id>`, the repo the user named, or the report dir;
+  3. the pane is one this run created for that worker.
+
+  Then: `herdr pane send-keys <pane> down`, re-read and confirm the selected line is `❯ Yes, I trust this folder`, `herdr pane send-keys <pane> enter`, `herdr agent wait <id> --until idle --timeout 60000`, verify the model on the status line, and prompt it. Record in the scratchpad which folders you trusted. If any condition fails (unknown path, a path outside the run, a dialog you do not recognize), press nothing: `/exit` or leave it, and tell the user what the dialog asked and for which path.
 - **Verify the effective model** with `herdr agent read <id> --source visible` (status line) and record it. Never assume a model alias is available. A worker showing Opus is a launch error unless it is the user's recorded exception: `/exit` it and relaunch it on the table's model.
-- Do not duplicate an agent that already exists for the task. Never answer another agent's permission prompt: relaunch it with the right flags instead.
+- Do not duplicate an agent that already exists for the task. Never answer another agent's tool permission prompt: relaunch it with the right flags instead. The folder trust dialog above is the one dialog you answer yourself.
 - **Secret deny rules, on every launch** (they win over `auto`): `DENY_SECRETS=(--disallowedTools "Read(./.env*)" "Read(**/.env*)" "Bash(printenv:*)" "Bash(env:*)" "Bash(export -p:*)" "Bash(declare -p:*)" "Bash(cat .env*)" "Bash(head .env*)" "Bash(tail .env*)" "Bash(grep * .env*)")`, passed as `"${DENY_SECRETS[@]}"` after the mode flags. Check once per run that `claude --help` lists `--disallowedTools`.
 
 | Work | Model | Mode flags |
@@ -103,6 +109,7 @@ All of these, in order:
 
 | Symptom | Do |
 |---|---|
+| `agent_not_ready … blocked during startup`, screen shows the folder trust dialog | Accept it yourself if the three conditions in Workers hold (dialog, path = cwd of a folder of this run, pane of this run); otherwise press nothing and tell the user. Never ask the user to accept it for a worktree you created |
 | `blocked` on a permission prompt | Do not answer it. Read it (`herdr agent read <id> --source visible`). If the tool or command is one the brief needs (a test runner, a build step, a git command in its worktree, a file under its allowed list), `/exit` the worker and relaunch it with the same name and brief plus `--allowedTools "<that rule>"`; record the rule in the scratchpad and add it to later launches. Only a prompt for something outside the brief (a destructive command, a secret, a host or path the brief never named) goes to the user, as a finding, with the worker left exited |
 | `idle` but no report file | Read `recent-unwrapped` output once; send one short follow-up asking for the report. Never resend the original prompt |
 | `working` far past the expected time | `herdr agent read` to see whether it progresses; if it loops or is silent, stop it and relaunch with a narrower brief |
@@ -133,6 +140,8 @@ If the Obsidian MCP was connected for this run, update the vault at the end, onl
 | "The Sonnet reviewer approved the auth task, merge it" | Security, payments and migrations also need your own check of the brief's invariants |
 | "Use opus everywhere to be safe" | Match model to the table; workers are never `opus` on your initiative |
 | "I'll ask which permission mode they want" | `auto` with the secret deny rules, always; `acceptEdits` plus an allowlist is the automatic fallback. The user is never asked about modes |
+| "The worker is stuck on 'trust this folder?', I'll ask the user" | For a worktree or repo of this run, check the three conditions and accept it yourself. Only an unknown path or an unrecognized dialog goes to the user |
+| "It's just a dialog, I'll press Enter on whatever is there" | Read it first. Trust dialog for a run folder only; tool permission prompts are never answered, the worker is relaunched with the rule allowed |
 | "A worker is blocked on a prompt, I'll show it to the user" | Read the prompt. If the brief needs that tool, relaunch with it allowed. The user sees only prompts for things the brief never asked for |
 | "Commit the scratchpad with the feature" | It stays untracked |
 | "The user said run it, so push too" | Push, PR and `main` need their own explicit yes |
